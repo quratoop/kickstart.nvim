@@ -504,7 +504,7 @@ require('lazy').setup({
       -- and language tooling communicate in a standardized fashion.
       --
       -- In general, you have a "server" which is some tool built to understand a particular
-      -- language (such as `gopls`, `lua-language-server`, `rust_analyzer`, etc.). These Language Servers
+      -- language (such as `gopls`, `lua_ls`, `rust_analyzer`, etc.). These Language Servers
       -- (sometimes called LSP servers, but that's kind of like ATM Machine) are standalone
       -- processes that communicate with some "client" - in this case, Neovim!
       --
@@ -620,7 +620,7 @@ require('lazy').setup({
       -- You can press `g?` for help in this menu.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'lua-language-server', -- Lua Language server
+        'lua_ls', -- Lua Language server
         'stylua', -- Used to format Lua code
         -- You can add other tools here that you want Mason to install
       })
@@ -634,7 +634,7 @@ require('lazy').setup({
       end
 
       -- Special Lua Config, as recommended by neovim help docs
-      vim.lsp.config('lua-language-server', {
+      vim.lsp.config('lua_ls', {
         on_init = function(client)
           if client.workspace_folders then
             local path = client.workspace_folders[1].name
@@ -658,7 +658,7 @@ require('lazy').setup({
           Lua = {},
         },
       })
-      vim.lsp.enable 'lua-language-server'
+      vim.lsp.enable 'lua_ls'
     end,
   },
 
@@ -872,6 +872,62 @@ require('lazy').setup({
       vim.api.nvim_create_autocmd('FileType', {
         pattern = filetypes,
         callback = function() vim.treesitter.start() end,
+      })
+    end,
+  },
+
+  { -- Autocompletion (Das Herzstück)
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",     -- LSP Quelle für nvim-cmp
+      "hrsh7th/cmp-buffer",       -- Text aus dem aktuellen Buffer
+      "hrsh7th/cmp-path",         -- Dateipfade
+      "L3MON4D3/LuaSnip",         -- Snippet Engine (Zwingend erforderlich für viele Setups)
+      "saadparwaiz1/cmp_luasnip", -- Snippet Quelle für nvim-cmp
+    },
+    config = function()
+      local cmp = require("cmp")
+      local luasnip = require("luasnip")
+
+      cmp.setup({
+        snippet = {
+          expand = function(args)
+            luasnip.lsp_expand(args.body)
+          end,
+        },
+        mapping = cmp.mapping.preset.insert({
+          -- ENTER: Wählt den aktuellen Eintrag aus
+          -- select = true bedeutet: Wenn nichts markiert ist, nimm den ersten Vorschlag
+          ["<CR>"] = cmp.mapping.confirm({ select = true }),
+
+          -- TAB: Navigiert nach unten oder rückt ein
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_next_item()
+            elseif luasnip.expand_or_jumpable() then
+              luasnip.expand_or_jump()
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+
+          -- SHIFT-TAB: Navigiert nach oben
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item()
+            elseif luasnip.jumpable(-1) then
+              luasnip.jump(-1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+        }),
+        sources = cmp.config.sources({
+          { name = "nvim_lsp" }, -- Priorität 1: LSP
+          { name = "luasnip" },  -- Priorität 2: Snippets
+          { name = "buffer" },   -- Priorität 3: Text im Dokument
+          { name = "path" },     -- Priorität 4: Pfade
+        }),
       })
     end,
   },
