@@ -981,4 +981,41 @@ require('lazy').setup({
 })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
--- vim: ts=2 sts=2 sw=2 et
+-- vim: ts=2 sts=2 sw=2 
+
+-- Clangd setup
+local function switch_source_header(bufnr)
+  local client = vim.lsp.get_clients({ bufnr = bufnr, name = 'clangd' })[1]
+  if not client then return end
+  local params = vim.lsp.util.make_text_document_params(bufnr)
+  client.request('textDocument/switchSourceHeader', params, function(err, result)
+    if err or not result then return end
+    vim.cmd.edit(vim.uri_to_fname(result))
+  end, bufnr)
+end
+
+vim.lsp.config('clangd', {
+  cmd = { 'clangd', '--background-index', '--clang-tidy', '--header-insertion=iwyu' },
+  filetypes = { 'c', 'cpp', 'objc', 'objcpp', 'cuda', 'proto' },
+  root_markers = { 
+    '.clangd', 
+    '.clang-tidy', 
+    '.clang-format', 
+    'compile_commands.json', 
+    'compile_flags.txt', 
+    'configure.ac', 
+    '.git' 
+  },
+  capabilities = vim.tbl_deep_extend('force', capabilities or {}, {
+    textDocument = { completion = { editsNearCursor = true } },
+    offsetEncoding = { 'utf-16' },
+  }),
+  on_attach = function(client, bufnr)
+    if on_attach then on_attach(client, bufnr) end
+    vim.api.nvim_buf_create_user_command(bufnr, 'ClangdSwitchSourceHeader', function()
+      switch_source_header(bufnr)
+    end, {})
+  end,
+})
+
+vim.lsp.enable('clangd')
